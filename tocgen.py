@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import os
 import re
 import sys
@@ -5,6 +7,8 @@ import sys
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--ts-->', re.IGNORECASE)
 REGEX_TAG_END = re.compile(r'<!--te-->', re.IGNORECASE)
+REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^\)]*)\)|(?P<remainder>.+)")
+REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
 
 def is_markdown_file(file_path):
 	return file_path[-3:].lower() == '.md'
@@ -39,6 +43,18 @@ def get_link_tag(header, link_tags_found):
 	
 	return '(#' + result + ')'
 
+def sanitise_toc_line (line_) :
+	rtn = ''
+	res = REGEX_HEADER_LINKS.finditer(line_)
+	for x in res :
+		if x.group ('remainder') :
+			rtn += x.group ('remainder')
+		else :
+			rtn += x.group ('text')
+			match = REGEX_HEADER_LINK_TEXT.match(x.group ('link'))
+			rtn += (match.group ('useme'))
+	return rtn
+
 def generate_toc_lines(file_lines):
 	toc = []
 	link_tags_found = {}
@@ -47,7 +63,7 @@ def generate_toc_lines(file_lines):
 		match = REGEX_MARKDOWN_HEADER.match(line)
 		if match:
 			# add spaces based on sub-level, add [Header], then figure out what the git link is for that header and add it
-			toc_entry = '    ' * (len(match.group(1)) - 1) + '* [' + match.group(2) + ']' + get_link_tag(match.group(2), link_tags_found)
+			toc_entry = '    ' * (len(match.group(1)) - 1) + '* [' + sanitise_toc_line(match.group(2)) + ']' + get_link_tag(match.group(2), link_tags_found)
 			toc.append(toc_entry + '\n')
 	
 	return toc
