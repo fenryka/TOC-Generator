@@ -7,15 +7,17 @@ import sys
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
 REGEX_TAG_END = re.compile(r'<!--[ ]*te[ ]*-->', re.IGNORECASE)
-REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^\)]*)\)|(?P<remainder>.+)")
+REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
+
 
 def is_markdown_file(file_path):
 	return file_path[-3:].lower() == '.md'
 
+
 def get_filenames(path, selector_lambda=None):
 	# By default we select everything
-	if selector_lambda == None:
+	if not selector_lambda:
 		selector_lambda = lambda path : True
 
 	files = []
@@ -24,7 +26,8 @@ def get_filenames(path, selector_lambda=None):
 			if selector_lambda(filename):
 				files.append(os.path.join(root, filename))
 
-	return files;
+	return files
+
 
 def get_link_tag(header, link_tags_found):
 	result = ''
@@ -43,17 +46,19 @@ def get_link_tag(header, link_tags_found):
 	
 	return '(#' + result + ')'
 
-def sanitise_toc_line (line_) :
+
+def sanitise_toc_line(line_):
 	rtn = ''
 	res = REGEX_HEADER_LINKS.finditer(line_)
-	for x in res :
-		if x.group ('remainder') :
-			rtn += x.group ('remainder')
-		else :
-			rtn += x.group ('text')
-			match = REGEX_HEADER_LINK_TEXT.match(x.group ('link'))
-			rtn += (match.group ('useme'))
+	for x in res:
+		if x.group('remainder'):
+			rtn += x.group('remainder')
+		else:
+			rtn += x.group('text')
+			match = REGEX_HEADER_LINK_TEXT.match(x.group('link'))
+			rtn += (match.group('useme'))
 	return rtn
+
 
 def generate_toc_lines(file_lines):
 	toc = []
@@ -63,13 +68,16 @@ def generate_toc_lines(file_lines):
 		match = REGEX_MARKDOWN_HEADER.match(line)
 		if match:
 			# add spaces based on sub-level, add [Header], then figure out what the git link is for that header and add it
-			toc_entry = '    ' * (len(match.group(1)) - 1) + '* [' + sanitise_toc_line(match.group(2)) + ']' + get_link_tag(match.group(2), link_tags_found)
+			toc_entry = '    ' * (len(match.group(1)) - 1) \
+						+ '* [' \
+						+ sanitise_toc_line(match.group(2)) \
+						+ ']' \
+						+ get_link_tag(match.group(2), link_tags_found)
 			toc.append(toc_entry + '\n')
 	
 	return toc
 			
 		
-
 # Returns indexes in the strings where tag starts and where it finishes.
 # Returns -1, -1 if tag not found
 def find_tags(file_lines):
@@ -86,18 +94,18 @@ def find_tags(file_lines):
 		
 	return -1, -1
 
+
 def main():
 	md_files = get_filenames(sys.argv[1], is_markdown_file)
 	
 	for file in md_files:
-		lines = []
 		with open(file, 'r') as file_handle:
 			lines = file_handle.readlines()
 		
 		start, end = find_tags(lines)
 		
-		if start != -1: # Found tags
-			del lines[start+1:end] # Remove anything in between the tags (eg. the table of contents)
+		if start != -1:  # Found tags
+			del lines[start+1:end]  # Remove anything in between the tags (eg. the table of contents)
 			
 			toc_lines = generate_toc_lines(lines)
 			
@@ -110,6 +118,7 @@ def main():
 					
 				for i in range(start + 1, len(lines)):
 					write_handle.write(lines[i])
-					
+
+
 if __name__ == "__main__":
 	main()
