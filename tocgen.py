@@ -5,8 +5,8 @@ import re
 import sys
 
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
-REGEX_TAG_START = re.compile(r'<!--ts-->', re.IGNORECASE)
-REGEX_TAG_END = re.compile(r'<!--te-->', re.IGNORECASE)
+REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
+REGEX_TAG_END = re.compile(r'<!--[ ]*te[ ]*-->', re.IGNORECASE)
 REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^\)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
 
