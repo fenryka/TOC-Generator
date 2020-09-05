@@ -60,11 +60,20 @@ def sanitise_toc_line(line_):
 	return rtn
 
 
-def generate_toc_lines(file_lines):
+def generate_toc_lines(start, file_lines):
+	"""
+	:param start: Lines before this marker are not included in the table of contents
+	:type start: int
+	:param file_lines: All the lines in the file
+	:type file_lines: list
+	"""
 	toc = []
 	link_tags_found = {}
 	
-	for line in file_lines:
+	for idx, line in enumerate(file_lines):
+		if idx < start:
+			continue
+
 		match = REGEX_MARKDOWN_HEADER.match(line)
 		if match:
 			# add spaces based on sub-level, add [Header], then figure out what the git link is for that header and add it
@@ -97,7 +106,7 @@ def find_tags(file_lines):
 
 def main():
 	md_files = get_filenames(sys.argv[1], is_markdown_file)
-	
+
 	for file in md_files:
 		with open(file, 'r') as file_handle:
 			lines = file_handle.readlines()
@@ -106,8 +115,8 @@ def main():
 		
 		if start != -1:  # Found tags
 			del lines[start+1:end]  # Remove anything in between the tags (eg. the table of contents)
-			
-			toc_lines = generate_toc_lines(lines)
+
+			toc_lines = generate_toc_lines(start, lines)
 			
 			with open(file, 'w') as write_handle:
 				for i in range(0, start + 1):
