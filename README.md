@@ -11,6 +11,7 @@ The system consists of a single python script, requiring >= Python v3.5 to run.
 1. In all markdown files in your project that you want to generate tables of contents for, insert the following tags into the file, where you want the table of contents to be placed:
 ```
 <!--ts-->
+* [Examples](#examples)
 <!--te-->
 ```
 

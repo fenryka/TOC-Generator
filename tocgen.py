@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import click
 
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
@@ -109,8 +110,10 @@ def find_tags(file_lines):
     return -1, -1
 
 
-def main():
-    md_files = get_filenames(sys.argv[1], is_markdown_file)
+@click.command()
+@click.argument("path")
+def main(path):
+    md_files = get_filenames(path, is_markdown_file)
 
     for file in md_files:
         with open(file, 'r') as file_handle:
@@ -132,7 +135,6 @@ def main():
 
                 for i in range(start + 1, len(lines)):
                     write_handle.write(lines[i])
-
 
 if __name__ == "__main__":
     main()
