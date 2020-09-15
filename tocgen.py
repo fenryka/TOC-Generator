@@ -2,8 +2,9 @@
 
 import os
 import re
-import sys
 import click
+
+from typing import Callable, List, Dict
 
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
@@ -11,12 +12,14 @@ REGEX_TAG_END = re.compile(r'<!--[ ]*te[ ]*-->', re.IGNORECASE)
 REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
 
+StrList = List[str]
 
-def is_markdown_file(file_path):
+
+def is_markdown_file(file_path: str) -> bool:
     return file_path[-3:].lower() == '.md'
 
 
-def get_filenames(path, selector_lambda=None):
+def get_file_names(path: str, selector_lambda: Callable = None) -> StrList:
     def default_selector(_):
         return
 
@@ -33,7 +36,7 @@ def get_filenames(path, selector_lambda=None):
     return files
 
 
-def get_link_tag(header, link_tags_found):
+def get_link_tag(header: str, link_tags_found: Dict) -> str:
     result = ''
     for c in header.lower():
         if c.isalnum():
@@ -51,7 +54,7 @@ def get_link_tag(header, link_tags_found):
     return '(#' + result + ')'
 
 
-def sanitise_toc_line(line_):
+def sanitise_toc_line(line_: str) -> str:
     rtn = ''
     res = REGEX_HEADER_LINKS.finditer(line_)
     for x in res:
@@ -64,7 +67,7 @@ def sanitise_toc_line(line_):
     return rtn
 
 
-def generate_toc_lines(start, file_lines):
+def generate_toc_lines(start: int, file_lines: StrList) -> StrList:
     """
     :param start: Lines before this marker are not included in the table of contents
     :type start: int
@@ -72,7 +75,7 @@ def generate_toc_lines(start, file_lines):
     :type file_lines: list
     """
 
-    toc = []
+    toc: StrList = []
     link_tags_found = {}
 
     for idx, line in enumerate(file_lines):
@@ -95,7 +98,7 @@ def generate_toc_lines(start, file_lines):
 
 # Returns indexes in the strings where tag starts and where it finishes.
 # Returns -1, -1 if tag not found
-def find_tags(file_lines):
+def find_tags(file_lines: List):
     current = 0
     for line in file_lines:
         if REGEX_TAG_START.match(line):
@@ -112,10 +115,14 @@ def find_tags(file_lines):
 
 @click.command()
 @click.argument("path")
-def main(path):
-    md_files = get_filenames(path, is_markdown_file)
+@click.option("-v", "--verbose", is_flag=True)
+def main(path, verbose):
+    md_files = get_file_names(path, is_markdown_file)
 
     for file in md_files:
+        if verbose:
+            click.echo("Checking file: " + file)
+
         with open(file, 'r') as file_handle:
             lines = file_handle.readlines()
 
@@ -135,6 +142,7 @@ def main(path):
 
                 for i in range(start + 1, len(lines)):
                     write_handle.write(lines[i])
+
 
 if __name__ == "__main__":
     main()
