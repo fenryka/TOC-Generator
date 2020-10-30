@@ -1,0 +1,8 @@
+#!/bin/bash
+
+rm -rf tests
+mkdir tests
+
+for x in `ls test-templates`; do
+    cp test-templates/$x tests/$x
+done

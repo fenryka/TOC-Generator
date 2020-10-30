@@ -23,15 +23,19 @@ def get_file_names(path: str, selector_lambda: Callable = None) -> StrList:
     def default_selector(_):
         return
 
+    files = []
+
     # By default we select everything
     if not selector_lambda:
         selector_lambda = default_selector
 
-    files = []
-    for root, directories, filenames in os.walk(path):
-        for filename in filenames:
-            if selector_lambda(filename):
-                files.append(os.path.join(root, filename))
+    if os.path.isfile(path):
+        files.append(path)
+    else:
+        for root, directories, filenames in os.walk(path):
+            for filename in filenames:
+                if selector_lambda(filename):
+                    files.append(os.path.join(root, filename))
 
     return files
 
