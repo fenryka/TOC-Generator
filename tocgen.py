@@ -4,13 +4,19 @@ import os
 import re
 import click
 
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Tuple, SupportsInt, AnyStr
 
+# Table of Contents patterns
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
-REGEX_TAG_END = re.compile(r'<!--[ ]*te[ ]*-->', re.IGNORECASE)
 REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
+
+# Table of Figures patterns
+REGEX_TOF_START = re.compile(r'<!--[ ]*tfs[ ]*-->', re.IGNORECASE)
+REGEX_FIG_X = re.compile(r'<!--[ ]*fig_x[ ]*:[ ]*(?P<title>.*?)[ ]*-->', re.IGNORECASE)
+
+REGEX_TAG_END = re.compile(r'<!--[ ]*end[ ]*-->', re.IGNORECASE)
 
 StrList = List[str]
 
@@ -71,17 +77,20 @@ def sanitise_toc_line(line_: str) -> str:
     return rtn
 
 
-def generate_toc_lines(start: int, file_lines: StrList) -> StrList:
+def parse_file(start: int, file_lines: StrList) -> Tuple[StrList, Dict[int, AnyStr]]:
     """
     :param start: Lines before this marker are not included in the table of contents
     :type start: int
     :param file_lines: All the lines in the file
     :type file_lines: list
+    :return
     """
 
     toc: StrList = []
     link_tags_found = {}
 
+    figureCount = 0
+    figureLines = {}
     for idx, line in enumerate(file_lines):
         if idx < start:
             continue
@@ -97,24 +106,29 @@ def generate_toc_lines(start: int, file_lines: StrList) -> StrList:
                         + get_link_tag(match.group(2), link_tags_found)
             toc.append(toc_entry + '\n')
 
-    return toc
+        figure = REGEX_FIG_X.match(line)
+        if figure:
+            figureCount += 1
+            figureLines[idx] = """<div align="center">**Figure %i**: %s</div>\n""" % (figureCount, figure.group("title"))
+
+    return toc, figureLines
 
 
-# Returns indexes in the strings where tag starts and where it finishes.
-# Returns -1, -1 if tag not found
-def find_tags(file_lines: List):
-    current = 0
-    for line in file_lines:
-        if REGEX_TAG_START.match(line):
-            for i in range(current + 1, len(file_lines)):
-                if REGEX_TAG_END.match(file_lines[i]):
-                    return current, i
-            # If we get here we didn't find a matching tag so just move on.
-            return -1, -1
+def find_tags(file_lines: List[AnyStr]) -> List[Tuple[int, int]]:
+    """
+    :return indexes in the strings where tag starts and where it finishes.
+    :return -1, -1 if tag not found
+    """
 
-        current += 1
+    rtn = []
 
-    return -1, -1
+    for idx, line in enumerate(file_lines):
+        if REGEX_TAG_START.match(line) or REGEX_TOF_START.match(line) or REGEX_FIG_X.match(line):
+            rtn.append((idx, -1))
+        elif REGEX_TAG_END.match(line):
+            rtn[-1] = (rtn[-1][0], idx)
+
+    return rtn
 
 
 @click.command()
@@ -130,12 +144,17 @@ def main(path, verbose):
         with open(file, 'r') as file_handle:
             lines = file_handle.readlines()
 
-        start, end = find_tags(lines)
+        tags = find_tags(lines)
 
-        if start != -1:  # Found tags
-            del lines[start + 1:end]  # Remove anything in between the tags (eg. the table of contents)
+        start = 0
 
-            toc_lines = generate_toc_lines(start, lines)
+        for tag in reversed(tags):
+            print(tag)
+            del lines[tag[0]+1:tag[1]]
+
+        if len(tags) > 0:
+
+            toc_lines, fig_lines = parse_file(start, lines)
 
             with open(file, 'w') as write_handle:
                 for i in range(0, start + 1):
@@ -145,7 +164,11 @@ def main(path, verbose):
                     write_handle.write(line)
 
                 for i in range(start + 1, len(lines)):
-                    write_handle.write(lines[i])
+                    if i in fig_lines:
+                        write_handle.write(lines[i])
+                        write_handle.write(fig_lines[i])
+                    else:
+                        write_handle.write(lines[i])
 
 
 if __name__ == "__main__":
