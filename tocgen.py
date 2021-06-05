@@ -11,6 +11,7 @@ REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
 REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
+REGEX_BODY_START = re.compile (r"<!--[ ]*body-start[ ]*-->")
 
 # Table of Figures patterns
 REGEX_TOF_START = re.compile(r'<!--[ ]*tfs[ ]*-->', re.IGNORECASE)
@@ -77,10 +78,8 @@ def sanitise_toc_line(line_: str) -> str:
     return rtn
 
 
-def parse_file(start: int, file_lines: StrList) -> Tuple[StrList, Dict[int, AnyStr]]:
+def parse_file(file_lines: StrList) -> Tuple[Tuple[int, int], StrList, Dict[int, AnyStr]]:
     """
-    :param start: Lines before this marker are not included in the table of contents
-    :type start: int
     :param file_lines: All the lines in the file
     :type file_lines: list
     :return
@@ -89,29 +88,37 @@ def parse_file(start: int, file_lines: StrList) -> Tuple[StrList, Dict[int, AnyS
     toc: StrList = []
     link_tags_found = {}
 
+    in_body = False
     figureCount = 0
     figureLines = {}
+    toc_start = -1
+    tof_start = -1
     for idx, line in enumerate(file_lines):
-        if idx < start:
-            continue
+        if REGEX_TAG_START.match(line):
+            toc_start = idx+1
+        elif REGEX_TOF_START.match(line):
+            tof_start = idx+1
+        elif REGEX_BODY_START.match(line):
+            in_body = True
+        else:
+            match = REGEX_MARKDOWN_HEADER.match(line)
+            if match and in_body:
+                # add spaces based on sub-level, add [Header], then figure out what the git link is for that
+                # header and add it
+                toc_entry = '    ' * (len(match.group(1)) - 1) \
+                            + '* [' \
+                            + sanitise_toc_line(match.group(2)) \
+                            + ']' \
+                            + get_link_tag(match.group(2), link_tags_found)
+                toc.append(toc_entry + '\n')
 
-        match = REGEX_MARKDOWN_HEADER.match(line)
-        if match:
-            # add spaces based on sub-level, add [Header], then figure out what the git link is for that
-            # header and add it
-            toc_entry = '    ' * (len(match.group(1)) - 1) \
-                        + '* [' \
-                        + sanitise_toc_line(match.group(2)) \
-                        + ']' \
-                        + get_link_tag(match.group(2), link_tags_found)
-            toc.append(toc_entry + '\n')
+            figure = REGEX_FIG_X.match(line)
+            if figure:
+                figureCount += 1
+                figureLines[idx] = """<div align="center">***Figure %i***: *%s*</div>\n""" % (
+                    figureCount, figure.group("title"))
 
-        figure = REGEX_FIG_X.match(line)
-        if figure:
-            figureCount += 1
-            figureLines[idx] = """<div align="center">**Figure %i**: %s</div>\n""" % (figureCount, figure.group("title"))
-
-    return toc, figureLines
+    return (toc_start, tof_start), toc, figureLines
 
 
 def find_tags(file_lines: List[AnyStr]) -> List[Tuple[int, int]]:
@@ -146,24 +153,21 @@ def main(path, verbose):
 
         tags = find_tags(lines)
 
-        start = 0
-
         for tag in reversed(tags):
             print(tag)
             del lines[tag[0]+1:tag[1]]
 
         if len(tags) > 0:
 
-            toc_lines, fig_lines = parse_file(start, lines)
+            starts, toc_lines, fig_lines = parse_file(lines)
 
             with open(file, 'w') as write_handle:
-                for i in range(0, start + 1):
-                    write_handle.write(lines[i])
 
-                for line in toc_lines:
-                    write_handle.write(line)
+                for i in range(0, len(lines)):
+                    if i == starts[0]:
+                        for line in toc_lines:
+                            write_handle.write(line)
 
-                for i in range(start + 1, len(lines)):
                     if i in fig_lines:
                         write_handle.write(lines[i])
                         write_handle.write(fig_lines[i])
