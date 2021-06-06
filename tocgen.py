@@ -4,18 +4,20 @@ import os
 import re
 import click
 
-from typing import Callable, List, Dict, Tuple, SupportsInt, AnyStr
+from typing import Callable, List, Dict, Tuple, AnyStr
 
 # Table of Contents patterns
 REGEX_MARKDOWN_HEADER = re.compile(r'(#+) ?(.+)\n?')
 REGEX_TAG_START = re.compile(r'<!--[ ]*ts[ ]*-->', re.IGNORECASE)
 REGEX_HEADER_LINKS = re.compile(r"(?P<text>[^[]*)(?P<link>[^)]*)\)|(?P<remainder>.+)")
 REGEX_HEADER_LINK_TEXT = re.compile(r"\[(?P<useme>[^]]+)")
-REGEX_BODY_START = re.compile (r"<!--[ ]*body-start[ ]*-->")
 
 # Table of Figures patterns
 REGEX_TOF_START = re.compile(r'<!--[ ]*tfs[ ]*-->', re.IGNORECASE)
 REGEX_FIG_X = re.compile(r'<!--[ ]*fig_x[ ]*:[ ]*(?P<title>.*?)[ ]*-->', re.IGNORECASE)
+
+# Where to start processing headers for the table of contents
+REGEX_BODY_START = re.compile(r"<!--[ ]*body-start[ ]*-->")
 
 REGEX_TAG_END = re.compile(r'<!--[ ]*end[ ]*-->', re.IGNORECASE)
 
@@ -39,8 +41,8 @@ def get_file_names(path: str, selector_lambda: Callable = None) -> StrList:
     if os.path.isfile(path):
         files.append(path)
     else:
-        for root, directories, filenames in os.walk(path):
-            for filename in filenames:
+        for root, directories, fileNames in os.walk(path):
+            for filename in fileNames:
                 if selector_lambda(filename):
                     files.append(os.path.join(root, filename))
 
@@ -78,7 +80,7 @@ def sanitise_toc_line(line_: str) -> str:
     return rtn
 
 
-def parse_file(file_lines: StrList) -> Tuple[Tuple[int, int], StrList, Dict[int, AnyStr]]:
+def parse_file(file_lines: StrList) -> Tuple[Tuple[int, int], StrList, StrList, Dict[int, AnyStr]]:
     """
     :param file_lines: All the lines in the file
     :type file_lines: list
@@ -86,6 +88,7 @@ def parse_file(file_lines: StrList) -> Tuple[Tuple[int, int], StrList, Dict[int,
     """
 
     toc: StrList = []
+    tof: StrList = []
     link_tags_found = {}
 
     in_body = False
@@ -115,10 +118,12 @@ def parse_file(file_lines: StrList) -> Tuple[Tuple[int, int], StrList, Dict[int,
             figure = REGEX_FIG_X.match(line)
             if figure:
                 figureCount += 1
-                figureLines[idx] = """<div align="center">***Figure %i***: *%s*</div>\n""" % (
-                    figureCount, figure.group("title"))
 
-    return (toc_start, tof_start), toc, figureLines
+                fig_title = "***Figure %i***: *%s*" % (figureCount, figure.group("title"))
+                figureLines[idx] = """<div align="center">%s</div>\n""" % fig_title
+                tof.append(" * %s\n" % fig_title)
+
+    return (toc_start, tof_start), toc, tof, figureLines
 
 
 def find_tags(file_lines: List[AnyStr]) -> List[Tuple[int, int]]:
@@ -159,13 +164,16 @@ def main(path, verbose):
 
         if len(tags) > 0:
 
-            starts, toc_lines, fig_lines = parse_file(lines)
+            starts, toc_lines, tof_lines, fig_lines = parse_file(lines)
 
             with open(file, 'w') as write_handle:
-
                 for i in range(0, len(lines)):
                     if i == starts[0]:
                         for line in toc_lines:
+                            write_handle.write(line)
+
+                    if i == starts[1]:
+                        for line in tof_lines:
                             write_handle.write(line)
 
                     if i in fig_lines:
